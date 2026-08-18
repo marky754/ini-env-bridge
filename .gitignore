@@ -1,0 +1,5 @@
+/ini-env-bridge
+/bin/
+*.test
+*.out
+.DS_Store
