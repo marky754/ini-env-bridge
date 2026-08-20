@@ -44,15 +44,49 @@ func envSafeName(s string) string {
 	return strings.ToUpper(s)
 }
 
-// FromEnv builds a single-section INIFile from env vars. Section-aware
-// splitting (turning DATABASE_HOST back into [database] host) is not
-// attempted here; see the roadmap in README.md.
+// FromEnv builds an INIFile from env vars, splitting each name on its
+// first underscore: the part before becomes the section, the part after
+// becomes the key. A name with no underscore lands in the implicit
+// top-level section. This is the exact reverse of ToEnv only for
+// single-word section names; a section named "my section" flattens to
+// the MY_SECTION_ prefix, and splitting on the first underscore alone
+// can't tell that apart from a section named "my" with a key starting
+// "section_...". See the README's known limitations.
 func FromEnv(vars []EnvVar) *INIFile {
-	sec := Section{Name: ""}
+	order := []string{""}
+	sections := map[string]*Section{"": {Name: ""}}
+
 	for _, v := range vars {
-		sec.Entries = append(sec.Entries, Entry{Key: strings.ToLower(v.Name), Value: v.Value})
+		secName, key := splitEnvName(v.Name)
+		sec, ok := sections[secName]
+		if !ok {
+			sec = &Section{Name: secName}
+			sections[secName] = sec
+			order = append(order, secName)
+		}
+		sec.Entries = append(sec.Entries, Entry{Key: key, Value: v.Value})
 	}
-	return &INIFile{Sections: []Section{sec}}
+
+	f := &INIFile{}
+	for _, name := range order {
+		sec := sections[name]
+		if name == "" && len(sec.Entries) == 0 && len(order) > 1 {
+			continue
+		}
+		f.Sections = append(f.Sections, *sec)
+	}
+	return f
+}
+
+// splitEnvName divides an env var name into a section and key on its
+// first underscore, e.g. "DATABASE_HOST" -> ("database", "host"). A
+// name with no underscore has no section.
+func splitEnvName(name string) (section, key string) {
+	i := strings.IndexByte(name, '_')
+	if i < 0 {
+		return "", strings.ToLower(name)
+	}
+	return strings.ToLower(name[:i]), strings.ToLower(name[i+1:])
 }
 
 // ParseEnv reads NAME=value lines, ignoring blank lines and '#' comments.

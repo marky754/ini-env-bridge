@@ -43,9 +43,10 @@ Convert the other direction:
 $ ./iniconv convert --from env --to ini secrets.env > secrets.ini
 ```
 
-`env` to `ini` currently writes everything into a single unnamed
-section — it doesn't try to guess sections back out of a flat
-`DATABASE_HOST` style name. See Roadmap below.
+`env` to `ini` splits each name on its first underscore: the part
+before becomes the section, the part after becomes the key. So
+`DATABASE_HOST` becomes `[database] host`. A name with no underscore
+lands in the top-level, unnamed section.
 
 Both directions read from stdin if you don't pass a file:
 
@@ -81,13 +82,15 @@ $ ./iniconv inspect --json config.ini
 ## Known limitations
 
 - Comments in the source INI file are dropped, not round-tripped.
-- `env` to `ini` doesn't reconstruct sections from name prefixes.
+- `env` to `ini` only recovers section names that are a single word:
+  splitting on the first underscore can't tell a section named
+  `my section` (flattened to a `MY_SECTION_` prefix) apart from a
+  section named `my` with a key called `section_...`.
 - No support yet for INI value types beyond plain strings (no arrays,
   no interpolation).
 
 ## Roadmap
 
-- section-aware env-to-ini mapping (reverse of the flatten step)
 - preserve comments through parse and write
 - `--strict` mode that fails on duplicate keys instead of just
   reporting them
