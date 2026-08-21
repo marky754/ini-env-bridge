@@ -81,7 +81,11 @@ $ ./iniconv inspect --json config.ini
 
 ## Known limitations
 
-- Comments in the source INI file are dropped, not round-tripped.
+- Comments survive an INI-to-INI round trip (parsing and re-writing the
+  same file), attached to whatever they were sitting above - a key, a
+  `[section]` header, or the end of the file. They do not survive a
+  detour through `.env`, since env files have no comment syntax the
+  keys are converted back through.
 - `env` to `ini` only recovers section names that are a single word:
   splitting on the first underscore can't tell a section named
   `my section` (flattened to a `MY_SECTION_` prefix) apart from a
@@ -91,7 +95,6 @@ $ ./iniconv inspect --json config.ini
 
 ## Roadmap
 
-- preserve comments through parse and write
 - `--strict` mode that fails on duplicate keys instead of just
   reporting them
 - support quoted values with embedded `=` in INI
