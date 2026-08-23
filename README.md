@@ -92,6 +92,13 @@ duplicate keys:
 iniconv: 1 duplicate key(s) found
 ```
 
+Values can be wrapped in quotes when they need to carry an `=`, a `:`,
+or leading/trailing whitespace through unchanged - `key = "  a=b  "`
+keeps the spaces and the `=` instead of getting trimmed. Inside double
+quotes a backslash escapes the next character, so a value can contain
+a literal `"` too. Plain values don't need quoting just because they
+contain `=` or `:` elsewhere, e.g. `url = http://host:8080/x?a=b`.
+
 ## Known limitations
 
 - Comments survive an INI-to-INI round trip (parsing and re-writing the
@@ -99,6 +106,10 @@ iniconv: 1 duplicate key(s) found
   `[section]` header, or the end of the file. They do not survive a
   detour through `.env`, since env files have no comment syntax the
   keys are converted back through.
+- A value that's unquoted in the source but happens to start and end
+  with matching quote characters is read as quoted, and loses those
+  quote characters. Wrap it in an outer pair of quotes if you need the
+  inner ones kept literally.
 - `env` to `ini` only recovers section names that are a single word:
   splitting on the first underscore can't tell a section named
   `my section` (flattened to a `MY_SECTION_` prefix) apart from a
@@ -108,8 +119,8 @@ iniconv: 1 duplicate key(s) found
 
 ## Roadmap
 
-- support quoted values with embedded `=` in INI
 - a `diff` subcommand to compare two INI files section by section
+- unit tests for ini.go and env.go
 
 ## License
 

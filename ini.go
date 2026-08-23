@@ -58,6 +58,13 @@ func (e *ParseError) Error() string {
 // are attached to whatever follows them - the next entry, or the next
 // [section] header - so WriteINI can reproduce them on round trip. Blank
 // lines are still dropped rather than preserved.
+//
+// A value wrapped in matching double or single quotes has the quotes
+// stripped; inside double quotes, a backslash escapes the next
+// character, so a value can contain '=', ':', or leading/trailing
+// whitespace without it being mistaken for the key/value separator or
+// trimmed away. An unquoted value is trimmed and taken as-is, so
+// "url = http://host:8080/x?a=b" still works without any quoting.
 func ParseINI(r io.Reader) (*INIFile, error) {
 	file := &INIFile{}
 	// entries before the first [section] header live in the implicit
@@ -103,7 +110,7 @@ func ParseINI(r io.Reader) (*INIFile, error) {
 		if key == "" {
 			return nil, &ParseError{Line: lineNo, Text: raw}
 		}
-		value := strings.TrimSpace(line[sep+1:])
+		value := unquoteINIValue(strings.TrimSpace(line[sep+1:]))
 
 		if !haveCurrent {
 			haveCurrent = true
@@ -151,7 +158,7 @@ func WriteINI(w io.Writer, f *INIFile) error {
 			if err := writeComments(bw, e.Comments); err != nil {
 				return err
 			}
-			if _, err := fmt.Fprintf(bw, "%s = %s\n", e.Key, e.Value); err != nil {
+			if _, err := fmt.Fprintf(bw, "%s = %s\n", e.Key, quoteINIValue(e.Value)); err != nil {
 				return err
 			}
 		}
@@ -160,6 +167,53 @@ func WriteINI(w io.Writer, f *INIFile) error {
 		}
 	}
 	return bw.Flush()
+}
+
+// quoteINIValue wraps v in double quotes when a plain "key = value" line
+// couldn't carry it back through ParseINI unchanged - specifically when
+// it has leading or trailing whitespace, since the parser trims that off
+// an unquoted value. Embedded quotes and backslashes are escaped so
+// unquoteINIValue can recover the exact original string, including one
+// that itself contains an '=' or ':'.
+func quoteINIValue(v string) string {
+	if v == strings.TrimSpace(v) {
+		return v
+	}
+	var b strings.Builder
+	b.WriteByte('"')
+	for _, r := range v {
+		if r == '"' || r == '\\' {
+			b.WriteByte('\\')
+		}
+		b.WriteRune(r)
+	}
+	b.WriteByte('"')
+	return b.String()
+}
+
+// unquoteINIValue strips a matching pair of surrounding quotes from a
+// parsed value. Double-quoted values are unescaped per quoteINIValue's
+// scheme (a backslash makes the following character literal); single
+// quotes are unwrapped verbatim, matching how env.go treats .env values.
+func unquoteINIValue(v string) string {
+	if len(v) < 2 {
+		return v
+	}
+	if v[0] == '\'' && v[len(v)-1] == '\'' {
+		return v[1 : len(v)-1]
+	}
+	if v[0] != '"' || v[len(v)-1] != '"' {
+		return v
+	}
+	inner := v[1 : len(v)-1]
+	var b strings.Builder
+	for i := 0; i < len(inner); i++ {
+		if inner[i] == '\\' && i+1 < len(inner) {
+			i++
+		}
+		b.WriteByte(inner[i])
+	}
+	return b.String()
 }
 
 func writeComments(w io.Writer, comments []string) error {
