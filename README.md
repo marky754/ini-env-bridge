@@ -79,6 +79,19 @@ $ ./iniconv inspect --json config.ini
 }
 ```
 
+Add `--strict` to fail the command (non-zero exit) when duplicate keys
+turn up, instead of only listing them:
+
+```
+$ ./iniconv inspect --strict config.ini
+2 section(s), 3 key(s) total
+  [database] line 1: 2 key(s)
+  [server] line 4: 1 key(s)
+duplicate keys:
+  [database] host appears 2 times (lines [2 3])
+iniconv: 1 duplicate key(s) found
+```
+
 ## Known limitations
 
 - Comments survive an INI-to-INI round trip (parsing and re-writing the
@@ -95,8 +108,6 @@ $ ./iniconv inspect --json config.ini
 
 ## Roadmap
 
-- `--strict` mode that fails on duplicate keys instead of just
-  reporting them
 - support quoted values with embedded `=` in INI
 - a `diff` subcommand to compare two INI files section by section
 

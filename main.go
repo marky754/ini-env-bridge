@@ -42,10 +42,11 @@ func usage() {
 Usage:
   iniconv convert --from ini --to env [file]   convert ini to env, stdin if file omitted
   iniconv convert --from env --to ini [file]   convert env to ini, stdin if file omitted
-  iniconv inspect [--json] file                summarize an ini file's sections and keys
+  iniconv inspect [--json] [--strict] file      summarize an ini file's sections and keys
 
 Convert writes to stdout. Inspect defaults to a human-readable report;
-pass --json for a machine-readable one.
+pass --json for a machine-readable one. Pass --strict to exit non-zero
+when duplicate keys are found instead of just reporting them.
 `)
 }
 
@@ -114,6 +115,7 @@ type DuplicateEntry struct {
 func runInspect(args []string) error {
 	fs := flag.NewFlagSet("inspect", flag.ExitOnError)
 	asJSON := fs.Bool("json", false, "emit machine-readable JSON instead of a text report")
+	strict := fs.Bool("strict", false, "exit with a non-zero status if any duplicate keys are found")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -136,9 +138,19 @@ func runInspect(args []string) error {
 	if *asJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(report)
+		if err := enc.Encode(report); err != nil {
+			return err
+		}
+	} else {
+		printReport(report)
 	}
-	printReport(report)
+
+	// The report itself already lists which keys collided, so the
+	// strict failure just needs to flip the exit status - repeating
+	// the detail here would only duplicate what's already on stdout.
+	if *strict && len(report.Duplicates) > 0 {
+		return fmt.Errorf("%d duplicate key(s) found", len(report.Duplicates))
+	}
 	return nil
 }
 
