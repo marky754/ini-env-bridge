@@ -99,6 +99,20 @@ quotes a backslash escapes the next character, so a value can contain
 a literal `"` too. Plain values don't need quoting just because they
 contain `=` or `:` elsewhere, e.g. `url = http://host:8080/x?a=b`.
 
+Compare two INI files section by section:
+
+```
+$ ./iniconv diff old.ini new.ini
+[database]
+  ~ host: localhost -> db.internal
+  + timeout: 30
+  - legacy_flag: true
+```
+
+`-` is a key only in the first file, `+` is a key only in the second,
+`~` is a key present in both with a different value. Add `--json` for a
+machine-readable list of the same changes, grouped by section.
+
 ## Known limitations
 
 - Comments survive an INI-to-INI round trip (parsing and re-writing the
@@ -119,7 +133,6 @@ contain `=` or `:` elsewhere, e.g. `url = http://host:8080/x?a=b`.
 
 ## Roadmap
 
-- a `diff` subcommand to compare two INI files section by section
 - unit tests for ini.go and env.go
 
 ## License

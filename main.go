@@ -21,6 +21,8 @@ func main() {
 		err = runConvert(os.Args[2:])
 	case "inspect":
 		err = runInspect(os.Args[2:])
+	case "diff":
+		err = runDiff(os.Args[2:])
 	case "-h", "--help", "help":
 		usage()
 		return
@@ -43,10 +45,12 @@ Usage:
   iniconv convert --from ini --to env [file]   convert ini to env, stdin if file omitted
   iniconv convert --from env --to ini [file]   convert env to ini, stdin if file omitted
   iniconv inspect [--json] [--strict] file      summarize an ini file's sections and keys
+  iniconv diff [--json] file1 file2             compare two ini files section by section
 
 Convert writes to stdout. Inspect defaults to a human-readable report;
 pass --json for a machine-readable one. Pass --strict to exit non-zero
-when duplicate keys are found instead of just reporting them.
+when duplicate keys are found instead of just reporting them. Diff
+reports keys added, removed, or changed going from file1 to file2.
 `)
 }
 
@@ -123,13 +127,7 @@ func runInspect(args []string) error {
 		return fmt.Errorf("inspect takes exactly one file argument")
 	}
 
-	in, err := os.Open(fs.Arg(0))
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-
-	f, err := ParseINI(in)
+	f, err := parseINIFile(fs.Arg(0))
 	if err != nil {
 		return err
 	}
@@ -202,4 +200,45 @@ func printReport(r Report) {
 		}
 		fmt.Printf("  [%s] %s appears %d times (lines %v)\n", name, d.Key, len(d.Lines), d.Lines)
 	}
+}
+
+func runDiff(args []string) error {
+	fs := flag.NewFlagSet("diff", flag.ExitOnError)
+	asJSON := fs.Bool("json", false, "emit machine-readable JSON instead of a text report")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 2 {
+		return fmt.Errorf("diff takes exactly two file arguments")
+	}
+
+	a, err := parseINIFile(fs.Arg(0))
+	if err != nil {
+		return err
+	}
+	b, err := parseINIFile(fs.Arg(1))
+	if err != nil {
+		return err
+	}
+
+	diffs := DiffINI(a, b)
+	if *asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(diffs)
+	}
+	if len(diffs) == 0 {
+		fmt.Println("no differences")
+		return nil
+	}
+	return WriteDiff(os.Stdout, diffs)
+}
+
+func parseINIFile(path string) (*INIFile, error) {
+	in, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer in.Close()
+	return ParseINI(in)
 }
